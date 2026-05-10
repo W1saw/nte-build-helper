@@ -27,28 +27,57 @@ export class GeminiError extends Error {
 export async function generateStructuredFromImage<T>(
   req: GeminiVisionRequest,
 ): Promise<T> {
+  return callGemini<T>({
+    model: req.model,
+    systemPrompt: req.systemPrompt,
+    userParts: [
+      { text: req.userPrompt },
+      { inlineData: { mimeType: req.imageMimeType, data: req.imageBase64 } },
+    ],
+    responseSchema: req.responseSchema,
+    temperature: 0.1,
+  });
+}
+
+export type GeminiTextRequest = {
+  model: "gemini-2.5-flash" | "gemini-2.5-pro";
+  systemPrompt: string;
+  userPrompt: string;
+  responseSchema: GeminiSchema;
+  temperature?: number;
+};
+
+export async function generateStructuredText<T>(req: GeminiTextRequest): Promise<T> {
+  return callGemini<T>({
+    model: req.model,
+    systemPrompt: req.systemPrompt,
+    userParts: [{ text: req.userPrompt }],
+    responseSchema: req.responseSchema,
+    temperature: req.temperature ?? 0.4,
+  });
+}
+
+type Part = { text: string } | { inlineData: { mimeType: string; data: string } };
+
+async function callGemini<T>(opts: {
+  model: string;
+  systemPrompt: string;
+  userParts: Part[];
+  responseSchema: GeminiSchema;
+  temperature: number;
+}): Promise<T> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new GeminiError("GEMINI_API_KEY is not set", 500, "");
 
-  const url = `${ENDPOINT_BASE}/${req.model}:generateContent?key=${apiKey}`;
+  const url = `${ENDPOINT_BASE}/${opts.model}:generateContent?key=${apiKey}`;
 
   const body = {
-    systemInstruction: {
-      parts: [{ text: req.systemPrompt }],
-    },
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { text: req.userPrompt },
-          { inlineData: { mimeType: req.imageMimeType, data: req.imageBase64 } },
-        ],
-      },
-    ],
+    systemInstruction: { parts: [{ text: opts.systemPrompt }] },
+    contents: [{ role: "user", parts: opts.userParts }],
     generationConfig: {
       responseMimeType: "application/json",
-      responseSchema: req.responseSchema,
-      temperature: 0.1, // фиксируем для стабильности парсинга
+      responseSchema: opts.responseSchema,
+      temperature: opts.temperature,
     },
   };
 
@@ -59,13 +88,8 @@ export async function generateStructuredFromImage<T>(
   });
 
   const text = await response.text();
-
   if (!response.ok) {
-    throw new GeminiError(
-      `Gemini API ${response.status}`,
-      response.status,
-      text,
-    );
+    throw new GeminiError(`Gemini API ${response.status}`, response.status, text);
   }
 
   let parsed: { candidates?: { content?: { parts?: { text?: string }[] } }[] };
@@ -83,10 +107,6 @@ export async function generateStructuredFromImage<T>(
   try {
     return JSON.parse(jsonText) as T;
   } catch {
-    throw new GeminiError(
-      "Gemini returned text but not valid JSON",
-      500,
-      jsonText,
-    );
+    throw new GeminiError("Gemini returned text but not valid JSON", 500, jsonText);
   }
 }

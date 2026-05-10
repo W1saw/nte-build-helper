@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { recommendBuild, type BuildRecommendation } from "./actions";
 
 export type SetRow = {
   id: string;
@@ -51,6 +52,9 @@ export function BuildBuilder({
 }) {
   const [selectedSetId, setSelectedSetId] = useState<string>("");
   const [selectedArcId, setSelectedArcId] = useState<string>("");
+  const [recommendation, setRecommendation] = useState<BuildRecommendation | null>(null);
+  const [loadingRec, setLoadingRec] = useState(false);
+  const [recError, setRecError] = useState<string | null>(null);
   const selectedSet = sets.find((s) => s.id === selectedSetId);
   const selectedArc = arcs.find((a) => a.id === selectedArcId);
   const setShapes = requiredShapes
@@ -58,6 +62,31 @@ export function BuildBuilder({
     .sort((a, b) => a.position - b.position);
 
   const shapeById = new Map(shapes.map((s) => [s.id, s]));
+
+  async function onRequestRecommendation() {
+    setLoadingRec(true);
+    setRecError(null);
+    const result = await recommendBuild(character.id);
+    setLoadingRec(false);
+    if (!result.ok) {
+      setRecError(result.error);
+      return;
+    }
+    setRecommendation(result.recommendation);
+    if (result.recommendation.recommended_set_id) {
+      // Автозаполняем селекторы рекомендацией ИИ
+      const matchingSet = sets.find(
+        (s) => s.id === result.recommendation.recommended_set_id,
+      );
+      if (matchingSet) setSelectedSetId(matchingSet.id);
+    }
+    if (result.recommendation.recommended_arc_id) {
+      const matchingArc = arcs.find(
+        (a) => a.id === result.recommendation.recommended_arc_id,
+      );
+      if (matchingArc) setSelectedArcId(matchingArc.id);
+    }
+  }
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
@@ -199,22 +228,59 @@ export function BuildBuilder({
         )}
       </div>
 
-      {/* ── Правая колонка: совет ИИ ─────────────────────────────────────── */}
+      {/* ── Правая колонка: рекомендация ИИ ──────────────────────────────── */}
       <aside className="space-y-4">
         <section className="rounded-md border border-neutral-200 bg-white p-5">
-          <h2 className="text-base font-semibold">Совет ИИ</h2>
+          <h2 className="text-base font-semibold">Рекомендация ИИ</h2>
           <p className="mt-2 text-sm text-neutral-600">
-            Стрим-ответ от Gemini 2.5 Pro появится здесь. Он учтёт персонажа,
-            выбранный сет и базу гайдов.
+            Gemini 2.5 Pro посмотрит характеристики персонажа, доступные сеты и
+            Дуги — и сам соберёт оптимальный билд.
           </p>
           <button
             type="button"
-            disabled
-            className="mt-4 w-full rounded-md bg-neutral-300 px-4 py-2 text-sm font-medium text-white cursor-not-allowed"
-            title="Появится в Этапе 3 (RAG + Gemini)"
+            onClick={onRequestRecommendation}
+            disabled={loadingRec}
+            className="mt-4 w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
           >
-            Получить совет (Этап 3)
+            {loadingRec ? "Думаю..." : recommendation ? "Перегенерировать" : "Получить рекомендацию"}
           </button>
+
+          {recError && (
+            <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+              {recError}
+            </div>
+          )}
+
+          {recommendation && (
+            <div className="mt-4 space-y-3 text-sm">
+              <RecommendationBlock
+                title={`Сет: ${recommendation.recommended_set_name_ru}`}
+                body={recommendation.recommended_set_reasoning}
+              />
+              {recommendation.recommended_arc_name_ru && (
+                <RecommendationBlock
+                  title={`Дуга: ${recommendation.recommended_arc_name_ru}`}
+                  body={recommendation.recommended_arc_reasoning ?? ""}
+                />
+              )}
+              <RecommendationList
+                title="Главные статы (приоритет)"
+                items={recommendation.main_stat_priorities}
+              />
+              <RecommendationList
+                title="Доп. статы (приоритет)"
+                items={recommendation.sub_stat_priorities}
+              />
+              <RecommendationBlock
+                title="Свободные модули"
+                body={recommendation.free_module_strategy}
+              />
+              <div className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <span className="font-medium">Итог:</span>{" "}
+                {recommendation.overall_summary}
+              </div>
+            </div>
+          )}
         </section>
       </aside>
     </div>
@@ -288,5 +354,32 @@ function ShapeGrid({ pattern }: { pattern: number[][] }) {
 function FreeSlotPlaceholder() {
   return (
     <div className="text-3xl text-neutral-300">?</div>
+  );
+}
+
+function RecommendationBlock({ title, body }: { title: string; body: string }) {
+  return (
+    <div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+        {title}
+      </div>
+      <p className="mt-1 text-neutral-800">{body}</p>
+    </div>
+  );
+}
+
+function RecommendationList({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+        {title}
+      </div>
+      <ol className="mt-1 list-decimal pl-4 text-neutral-800">
+        {items.map((item, i) => (
+          <li key={i}>{item}</li>
+        ))}
+      </ol>
+    </div>
   );
 }
