@@ -370,14 +370,20 @@ allowed_users (
 | Расчёт суммарных статов на клиенте + проверка 2pc/4pc-бонусов | ⏸ |
 | Сохранение/загрузка собранных билдов в localStorage (на MVP без БД) | ⏸ |
 
-### Этап 2 — Vision pipeline (день 3)
+### Этап 2 — Vision pipeline (день 3) — В РАБОТЕ
 
-| Шаг | Статус |
-|---|---|
-| Страница `/admin/upload` с drag-n-drop | ⏸ |
-| Server action `processScreenshot` → Gemini Vision → парсинг JSON | ⏸ |
-| Запись в `characters`/`items`/`glossary` с дедупликацией | ⏸ |
-| UI ревью результата с возможностью править перед сохранением | ⏸ |
+| Шаг | Статус | Артефакт |
+|---|---|---|
+| `src/lib/gemini.ts` — REST-клиент (без SDK, на fetch) | ✅ | работает с structured output |
+| `src/lib/vision-prompts.ts` — промпты + JSON schemas для каждого типа | ✅ | пока 2 типа: `set_card`, `character` |
+| Server action `parseScreenshot` (multipart upload → Gemini Flash → JSON) | ✅ | `src/app/admin/upload/actions.ts` |
+| Server action `saveSetCard` (sets + set_required_shapes + glossary upsert) | ✅ | формы выбираются вручную из dropdown'а после Vision-описания |
+| Server action `saveCharacter` (characters + glossary upsert) | ✅ | |
+| `/admin/upload` UI с селектором типа + dropzone + ревью-формой | ✅ | `src/app/admin/upload/page.tsx` + `UploadUI.tsx` |
+| Smoke-test: загрузить карточку «Утраченное сияние» → сохранить | ⏸ | после деплоя |
+| Прогон по 12 сетам → каталог заполнен | ⏸ | после первого smoke-теста |
+| Storage bucket `screenshots/` + сохранение оригиналов с `parsed_data` | ⏸ | оптимизация на Этап 2.1 — для аудита |
+| Карточки модулей с пассивками (3-й тип) | ⏸ | по запросу, если потребуется |
 
 ### Этап 3 — RAG + чат-эндпоинт (день 4)
 
