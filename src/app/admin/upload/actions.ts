@@ -28,8 +28,8 @@ export async function parseScreenshot(
     return { ok: false, error: "Не передан файл или тип скрина." };
   }
 
-  if (file.size > 10 * 1024 * 1024) {
-    return { ok: false, error: "Файл больше 10 МБ — слишком большой для обработки." };
+  if (file.size > 15 * 1024 * 1024) {
+    return { ok: false, error: "Файл больше 15 МБ — слишком большой для обработки." };
   }
 
   const arrayBuffer = await file.arrayBuffer();
