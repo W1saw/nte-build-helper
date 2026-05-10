@@ -1,7 +1,11 @@
 -- Сидинг персонажей NTE (15 шт на 10.05.2026).
--- Применяется ПОСЛЕ миграции 0003. Идемпотентен (on conflict do update).
+-- Применяется ПОСЛЕ миграций 0003 (добавление полей) и 0004 (rename archetype → arc_type).
+-- Идемпотентен (on conflict do update).
+--
+-- arc_type — тип Дуги (Arc), аналог оружия в NTE. 5 типов: Когнитивный,
+-- Инстинктивный, Сдерживающий, Соединительный, Эмотивный.
 
-insert into public.characters (name_ru, anima_type, role, archetype, rank, notes) values
+insert into public.characters (name_ru, anima_type, role, arc_type, rank, notes) values
   ('Наналли',  'Анима',    'Урон',      'Когнитивный',    'S', null),
   ('Сакири',   'Чары',     'Усиление',  'Сдерживающий',   'S', null),
   ('Эспер',    'Космос',   'Урон',      'Инстинктивный',  'S', 'Главный герой'),
@@ -20,6 +24,6 @@ insert into public.characters (name_ru, anima_type, role, archetype, rank, notes
 on conflict (name_ru) do update set
   anima_type = excluded.anima_type,
   role = excluded.role,
-  archetype = excluded.archetype,
+  arc_type = excluded.arc_type,
   rank = excluded.rank,
   notes = excluded.notes;
