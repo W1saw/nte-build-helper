@@ -3,16 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { generateStructuredFromImage, GeminiError } from "@/lib/gemini";
 import {
+  ARC_PROMPT,
+  ARC_SCHEMA,
   CHARACTER_PROMPT,
   CHARACTER_SCHEMA,
   SET_CARD_PROMPT,
   SET_CARD_SCHEMA,
+  type ParsedArc,
   type ParsedCharacter,
   type ParsedSetCard,
 } from "@/lib/vision-prompts";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export type ScreenType = "set_card" | "character";
+export type ScreenType = "set_card" | "character" | "arc_card";
 
 type ParseResult<T> =
   | { ok: true; data: T }
@@ -20,7 +23,7 @@ type ParseResult<T> =
 
 export async function parseScreenshot(
   formData: FormData,
-): Promise<ParseResult<{ type: ScreenType; data: ParsedSetCard | ParsedCharacter }>> {
+): Promise<ParseResult<{ type: ScreenType; data: ParsedSetCard | ParsedCharacter | ParsedArc }>> {
   const file = formData.get("image") as File | null;
   const type = formData.get("type") as ScreenType | null;
 
@@ -57,6 +60,18 @@ export async function parseScreenshot(
         imageBase64: base64,
         imageMimeType: mimeType,
         responseSchema: CHARACTER_SCHEMA,
+      });
+      return { ok: true, data: { type, data } };
+    }
+
+    if (type === "arc_card") {
+      const data = await generateStructuredFromImage<ParsedArc>({
+        model: "gemini-2.5-flash",
+        systemPrompt: ARC_PROMPT,
+        userPrompt: "Распознай карточку Дуги согласно инструкции.",
+        imageBase64: base64,
+        imageMimeType: mimeType,
+        responseSchema: ARC_SCHEMA,
       });
       return { ok: true, data: { type, data } };
     }
@@ -252,6 +267,86 @@ export async function saveCharacter(
 
   revalidatePath("/admin/upload");
   return { ok: true, characterId };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Сохранение Дуги (Arc)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type SaveArcInput = {
+  name_ru: string;
+  arc_type: string;
+  rarity: string | null;
+  passive_text_ru: string | null;
+  observed_main_stat: { name: string; value: string };
+  observed_sub_stats: Array<{ name: string; value: string }>;
+};
+
+export async function saveArc(
+  input: SaveArcInput,
+): Promise<{ ok: true; arcId: string } | { ok: false; error: string }> {
+  const supabase = await createSupabaseServerClient();
+
+  if (!input.name_ru.trim()) return { ok: false, error: "Имя Дуги не может быть пустым." };
+  if (!input.arc_type.trim()) return { ok: false, error: "Тип Дуги обязателен." };
+
+  const payload = {
+    name_ru: input.name_ru.trim(),
+    arc_type: input.arc_type.trim(),
+    rarity: input.rarity?.trim() || null,
+    passive_text_ru: input.passive_text_ru?.trim() || null,
+    main_stat_pool: { observed_examples: [input.observed_main_stat] },
+    sub_stat_pool: { observed_examples: input.observed_sub_stats },
+  };
+
+  const { data: existing } = await supabase
+    .from("arcs")
+    .select("id")
+    .eq("name_ru", payload.name_ru)
+    .maybeSingle();
+
+  let arcId: string;
+  if (existing) {
+    arcId = existing.id;
+    const { error } = await supabase.from("arcs").update(payload).eq("id", arcId);
+    if (error) {
+      console.error("[saveArc] update failed", error);
+      return { ok: false, error: error.message };
+    }
+  } else {
+    const { data: created, error } = await supabase
+      .from("arcs")
+      .insert(payload)
+      .select("id")
+      .single();
+    if (error || !created) {
+      console.error("[saveArc] insert failed", error);
+      return { ok: false, error: error?.message ?? "unknown" };
+    }
+    arcId = created.id;
+  }
+
+  // Глоссарий: Дуга + наблюдаемые статы
+  const glossaryEntries = [
+    { term_ru: payload.name_ru, category: "arc" as const },
+    { term_ru: input.observed_main_stat.name, category: "stat" as const },
+    ...input.observed_sub_stats.map((s) => ({
+      term_ru: s.name,
+      category: "stat" as const,
+    })),
+  ];
+  for (const entry of glossaryEntries) {
+    if (!entry.term_ru.trim()) continue;
+    await supabase
+      .from("glossary")
+      .upsert(
+        { term_ru: entry.term_ru, category: entry.category, confirmed: true },
+        { onConflict: "term_ru,category" },
+      );
+  }
+
+  revalidatePath("/admin/upload");
+  return { ok: true, arcId };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { BuildBuilder, type SetRow, type SetRequiredShape, type Shape } from "./BuildBuilder";
+import { BuildBuilder, type ArcOption, type SetRow, type SetRequiredShape, type Shape } from "./BuildBuilder";
 
 export default async function BuildPage({
   params,
@@ -43,6 +43,16 @@ export default async function BuildPage({
     notes: string | null;
   };
 
+  // Дуги — фильтр по arc_type персонажа (если у персонажа задан тип).
+  const arcsRes = character.arc_type
+    ? await supabase
+        .from("arcs")
+        .select("id, name_ru, arc_type, rarity, passive_text_ru")
+        .eq("arc_type", character.arc_type)
+        .order("rarity")
+        .order("name_ru")
+    : { data: [] as ArcOption[] };
+
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
       <Link
@@ -59,6 +69,7 @@ export default async function BuildPage({
         sets={(setsRes.data ?? []) as SetRow[]}
         requiredShapes={(requiredRes.data ?? []) as SetRequiredShape[]}
         shapes={(shapesRes.data ?? []) as Shape[]}
+        arcs={(arcsRes.data ?? []) as ArcOption[]}
       />
     </main>
   );

@@ -123,3 +123,72 @@ export const CHARACTER_SCHEMA: GeminiSchema = {
   },
   required: ["name_ru", "role", "anima_type", "description"],
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Карточка Дуги (Arc) — оружие персонажа
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type ParsedArc = {
+  name_ru: string;
+  arc_type: string | null; // Когнитивный | Инстинктивный | Сдерживающий | Соединительный | Эмотивный
+  rarity: string | null; // S | A | B | ...
+  observed_main_stat: { name: string; value: string };
+  observed_sub_stats: Array<{ name: string; value: string }>;
+  passive_text_ru: string | null;
+};
+
+export const ARC_PROMPT = `Ты обрабатываешь скрин из игры Neverness To Everness (NTE), русская локализация.
+На картинке — детальная карточка Дуги (Arc), оружия персонажа.
+
+Извлеки СТРОГО следующие поля:
+
+1. **name_ru** — название Дуги на русском (заголовок карточки).
+
+2. **arc_type** — тип Дуги, один из 5: «Когнитивный», «Инстинктивный», «Сдерживающий», «Соединительный», «Эмотивный». Указан где-то в карточке (иногда иконкой + подписью). Если не видно — null.
+
+3. **rarity** — ранг/редкость Дуги: «S», «A», «B». Обычно отображается рядом с названием. Если не видно — null.
+
+4. **observed_main_stat** — главный атрибут {name, value}. Например «Атака: 1500», «Бонус к урону: 30%».
+
+5. **observed_sub_stats** — массив доп.атрибутов (обычно 4 строки). Каждый — {name, value}.
+
+6. **passive_text_ru** — полный текст пассивки/уникального эффекта Дуги. Скопируй максимально близко к оригиналу. Если пассивки нет или не видна — null.
+
+Не выдумывай. Если поле не видно — null или пустая строка для текстов.`;
+
+export const ARC_SCHEMA: GeminiSchema = {
+  type: "object",
+  properties: {
+    name_ru: { type: "string" },
+    arc_type: { type: "string", nullable: true },
+    rarity: { type: "string", nullable: true },
+    observed_main_stat: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        value: { type: "string" },
+      },
+      required: ["name", "value"],
+    },
+    observed_sub_stats: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          value: { type: "string" },
+        },
+        required: ["name", "value"],
+      },
+    },
+    passive_text_ru: { type: "string", nullable: true },
+  },
+  required: [
+    "name_ru",
+    "arc_type",
+    "rarity",
+    "observed_main_stat",
+    "observed_sub_stats",
+    "passive_text_ru",
+  ],
+};

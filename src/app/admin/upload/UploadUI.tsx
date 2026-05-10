@@ -3,11 +3,13 @@
 import { useState } from "react";
 import {
   parseScreenshot,
+  saveArc,
   saveCharacter,
   saveSetCard,
   type ScreenType,
 } from "./actions";
 import type {
+  ParsedArc,
   ParsedCharacter,
   ParsedSetCard,
 } from "@/lib/vision-prompts";
@@ -21,7 +23,16 @@ type Shape = {
 
 type ParsedState =
   | { kind: "set_card"; data: ParsedSetCard }
-  | { kind: "character"; data: ParsedCharacter };
+  | { kind: "character"; data: ParsedCharacter }
+  | { kind: "arc_card"; data: ParsedArc };
+
+const ARC_TYPES = [
+  "Когнитивный",
+  "Инстинктивный",
+  "Сдерживающий",
+  "Соединительный",
+  "Эмотивный",
+];
 
 export function UploadUI({ shapes }: { shapes: Shape[] }) {
   const [type, setType] = useState<ScreenType>("set_card");
@@ -85,6 +96,7 @@ export function UploadUI({ shapes }: { shapes: Shape[] }) {
           >
             <option value="set_card">Карточка сета (картриджа)</option>
             <option value="character">Карточка персонажа</option>
+            <option value="arc_card">Карточка Дуги (Arc)</option>
           </select>
         </div>
 
@@ -148,6 +160,13 @@ export function UploadUI({ shapes }: { shapes: Shape[] }) {
         )}
         {parsed?.kind === "character" && (
           <CharacterReviewForm
+            initial={parsed.data}
+            onSaved={(msg) => setSaved(msg)}
+            onError={(msg) => setError(msg)}
+          />
+        )}
+        {parsed?.kind === "arc_card" && (
+          <ArcReviewForm
             initial={parsed.data}
             onSaved={(msg) => setSaved(msg)}
             onError={(msg) => setError(msg)}
@@ -418,6 +437,122 @@ function CharacterReviewForm({
           className="mt-1 block w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
         />
       </Field>
+
+      <button
+        type="submit"
+        disabled={saving}
+        className="w-full rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50"
+      >
+        {saving ? "Сохраняю..." : "Сохранить"}
+      </button>
+    </form>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Форма ревью Дуги (Arc)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ArcReviewForm({
+  initial,
+  onSaved,
+  onError,
+}: {
+  initial: ParsedArc;
+  onSaved: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [name, setName] = useState(initial.name_ru);
+  const [arcType, setArcType] = useState(initial.arc_type ?? "");
+  const [rarity, setRarity] = useState(initial.rarity ?? "");
+  const [passive, setPassive] = useState(initial.passive_text_ru ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) {
+      onError("Имя Дуги не может быть пустым.");
+      return;
+    }
+    if (!arcType.trim()) {
+      onError("Выбери тип Дуги.");
+      return;
+    }
+    setSaving(true);
+    const result = await saveArc({
+      name_ru: name.trim(),
+      arc_type: arcType.trim(),
+      rarity: rarity.trim() || null,
+      passive_text_ru: passive.trim() || null,
+      observed_main_stat: initial.observed_main_stat,
+      observed_sub_stats: initial.observed_sub_stats,
+    });
+    setSaving(false);
+    if (result.ok) {
+      onSaved(`Дуга «${name}» сохранена.`);
+    } else {
+      onError(result.error);
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4 rounded-md border border-neutral-200 bg-white p-4">
+      <h2 className="text-lg font-semibold">Ревью Дуги (Arc)</h2>
+
+      <Field label="Имя Дуги (RU)">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="mt-1 block w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+        />
+      </Field>
+
+      <Field label="Тип Дуги">
+        <select
+          value={arcType}
+          onChange={(e) => setArcType(e.target.value)}
+          className="mt-1 block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm"
+        >
+          <option value="">— выбрать тип —</option>
+          {ARC_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+      </Field>
+
+      <Field label="Ранг (S / A / B / ...)">
+        <input
+          type="text"
+          value={rarity}
+          onChange={(e) => setRarity(e.target.value)}
+          placeholder="например S"
+          className="mt-1 block w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+        />
+      </Field>
+
+      <Field label="Пассивка / уникальный эффект">
+        <textarea
+          value={passive}
+          onChange={(e) => setPassive(e.target.value)}
+          rows={4}
+          className="mt-1 block w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+        />
+      </Field>
+
+      <div className="rounded-md bg-neutral-50 p-3 text-xs text-neutral-600">
+        <div className="font-medium text-neutral-700">
+          Наблюдаемые статы (записываются как пример роллов):
+        </div>
+        <div className="mt-1">
+          Главный: {initial.observed_main_stat.name} = {initial.observed_main_stat.value}
+        </div>
+        <div className="mt-1">
+          Доп: {initial.observed_sub_stats.map((s) => `${s.name} ${s.value}`).join(", ")}
+        </div>
+      </div>
 
       <button
         type="submit"

@@ -24,11 +24,20 @@ export type Shape = {
   pattern: number[][];
 };
 
+export type ArcOption = {
+  id: string;
+  name_ru: string;
+  arc_type: string;
+  rarity: string | null;
+  passive_text_ru: string | null;
+};
+
 export function BuildBuilder({
   character,
   sets,
   requiredShapes,
   shapes,
+  arcs,
 }: {
   character: {
     id: string;
@@ -38,9 +47,12 @@ export function BuildBuilder({
   sets: SetRow[];
   requiredShapes: SetRequiredShape[];
   shapes: Shape[];
+  arcs: ArcOption[];
 }) {
   const [selectedSetId, setSelectedSetId] = useState<string>("");
+  const [selectedArcId, setSelectedArcId] = useState<string>("");
   const selectedSet = sets.find((s) => s.id === selectedSetId);
+  const selectedArc = arcs.find((a) => a.id === selectedArcId);
   const setShapes = requiredShapes
     .filter((rs) => rs.set_id === selectedSetId)
     .sort((a, b) => a.position - b.position);
@@ -51,6 +63,56 @@ export function BuildBuilder({
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
       {/* ── Левая колонка: сборка ────────────────────────────────────────── */}
       <div className="space-y-6">
+        <section className="rounded-md border border-neutral-200 bg-white p-5">
+          <h2 className="text-base font-semibold">
+            Дуга (Arc){" "}
+            {character.arc_type && (
+              <span className="text-sm font-normal text-neutral-500">
+                — тип «{character.arc_type}»
+              </span>
+            )}
+          </h2>
+          {character.arc_type ? (
+            arcs.length > 0 ? (
+              <>
+                <select
+                  value={selectedArcId}
+                  onChange={(e) => setSelectedArcId(e.target.value)}
+                  className="mt-3 block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-neutral-900 focus:ring-neutral-900"
+                >
+                  <option value="">— выбери Дугу —</option>
+                  {arcs.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name_ru}
+                      {a.rarity ? ` · ${a.rarity}` : ""}
+                    </option>
+                  ))}
+                </select>
+                {selectedArc?.passive_text_ru && (
+                  <div className="mt-3 rounded-md bg-neutral-50 p-3 text-sm">
+                    <span className="font-medium text-neutral-700">Пассивка:</span>{" "}
+                    <span className="text-neutral-800">
+                      {selectedArc.passive_text_ru}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="mt-3 text-sm text-neutral-500">
+                В каталоге нет Дуг типа «{character.arc_type}». Загрузи через{" "}
+                <a href="/admin/upload" className="text-neutral-900 underline">
+                  /admin/upload
+                </a>{" "}
+                (тип «Карточка Дуги»).
+              </p>
+            )
+          ) : (
+            <p className="mt-3 text-sm text-neutral-500">
+              У персонажа не задан тип Arc — фильтрация невозможна.
+            </p>
+          )}
+        </section>
+
         <section className="rounded-md border border-neutral-200 bg-white p-5">
           <h2 className="text-base font-semibold">Картридж (сет)</h2>
           <select
@@ -153,13 +215,6 @@ export function BuildBuilder({
           >
             Получить совет (Этап 3)
           </button>
-          {character.arc_type && (
-            <p className="mt-3 text-xs text-neutral-500">
-              {character.name_ru} использует Дугу типа{" "}
-              <span className="font-medium text-neutral-700">{character.arc_type}</span>.
-              Слот для Дуги добавим в Этапе 2.5 (когда заведём каталог).
-            </p>
-          )}
         </section>
       </aside>
     </div>

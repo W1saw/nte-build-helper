@@ -401,17 +401,16 @@ allowed_users (
 | Интеграция стрима в правую панель `/build/[charId]` | ⏸ |
 | Vercel cron schedule (раз в неделю) | ⏸ |
 
-### Этап 2.5 — Каталог Дуг (Arcs)
+### Этап 2.5 — Каталог Дуг (Arcs) — В РАБОТЕ
 
-| Шаг | Статус |
-|---|---|
-| Миграция: таблица `arcs(id, name_ru, arc_type, main_stat_pool, sub_stat_pool, passive_text_ru, rarity)` | ⏸ |
-| Vision-промпт «Карточка Дуги» в `vision-prompts.ts` | ⏸ |
-| Соответствующая server action `saveArc` | ⏸ |
-| Тип «arc_card» в селекторе `/admin/upload` | ⏸ |
-| UI: на странице `/build/[charId]` слот «Дуга» с фильтром по `character.arc_type` | ⏸ |
-
-Делается после первой версии конструктора (Этап 1) — чтобы не блокировать видимый прогресс.
+| Шаг | Статус | Артефакт |
+|---|---|---|
+| Миграция 0005: таблица `arcs(id, name_ru, arc_type, main_stat_pool, sub_stat_pool, passive_text_ru, rarity)` + RLS | ✅ | `supabase/migrations/0005_create_arcs.sql` |
+| Vision-промпт «Карточка Дуги» в `vision-prompts.ts` | ✅ | `ARC_PROMPT`, `ARC_SCHEMA`, `ParsedArc` |
+| Server action `saveArc` (upsert + глоссарий) | ✅ | `src/app/admin/upload/actions.ts` |
+| Тип «arc_card» в селекторе `/admin/upload` + форма ревью | ✅ | dropdown типа Arc из 5 вариантов |
+| Слот «Дуга» на `/build/[charId]` с фильтром по `character.arc_type` | ✅ | сверху над селектором сета, показывает пассивку |
+| Применить миграцию 0005 в Supabase + загрузить хотя бы одну Дугу | ⏸ | Артёму |
 
 ### Этап 4 — Опциональные улучшения (после MVP)
 
