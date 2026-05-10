@@ -3,5 +3,5 @@
 -- Применение: Supabase Dashboard → SQL Editor.
 
 insert into public.allowed_users (email) values
-  ('artem.n-claude@boni-brands.com')
+  ('mysticchaos0@gmail.com')
 on conflict (email) do nothing;

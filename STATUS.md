@@ -345,19 +345,20 @@ allowed_users (
 
 ## Этапы
 
-### Этап 0 — Каркас (день 1)
+### Этап 0 — Каркас (день 1) ✅ ЗАКРЫТ 10.05.2026
 
 | Шаг | Статус | Артефакт |
 |---|---|---|
-| Создать GitHub репо `nte-build-helper` (приватный) | ⏸ | — |
-| `npx create-next-app@latest` (App Router, TS, Tailwind, ESLint) | ⏸ | — |
-| Создать Supabase проект `nte-build-helper` (eu-central-1) | ⏸ | URL + anon key + service key |
-| Включить расширение `pgvector` в Supabase | ⏸ | — |
-| Применить SQL-миграцию со схемой БД | ⏸ | `supabase/migrations/0001_init.sql` |
-| Заполнить `allowed_users` мейлами (мой + друзей) | ⏸ | — |
-| Подключить Supabase Auth с magic link + RLS на whitelist | ⏸ | `src/lib/supabase.ts` |
-| Положить ENV в Vercel (`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `CRAWL_SOURCES`) | ⏸ | — |
-| Деплой на Vercel + кастомный домен (опционально) | ⏸ | — |
+| Создать GitHub репо `nte-build-helper` (приватный) | ✅ | https://github.com/W1saw/nte-build-helper |
+| Каркас Next.js 16 (App Router, TS, Tailwind 4, ESLint) | ✅ | `package.json`, `src/app/**` |
+| Создать Supabase проект (eu-central-1) | ✅ | новый проект (пересоздан после конфликта со старым) |
+| Подключить Supabase Auth (magic link + whitelist через `allowed_users`) | ✅ | `src/lib/supabase/*`, `src/app/login/**`, `src/app/auth/**` |
+| Middleware защиты роутов | ✅ | `src/middleware.ts` |
+| Положить ENV в Vercel | ✅ | 4 переменные после смены проекта Supabase |
+| Применить SQL-миграцию + seed | ✅ | `0001_init.sql` + `seed.sql` (whitelist `mysticchaos0@gmail.com`) |
+| Настроить Site URL + Redirect URLs в Supabase Auth | ✅ | без этого magic-link редиректил на `localhost:3000` |
+| Деплой на Vercel | ✅ | автодеплой работает по push в master |
+| Smoke-test: логин магик-линком на проде | ✅ | подтверждено Артёмом 10.05.2026 |
 
 ### Этап 1 — UI конструктор без ИИ (день 2)
 
@@ -480,8 +481,55 @@ Pinecone/Weaviate/Qdrant — всё это лишние сервисы. Supabase
 | Cron crawler | Vercel cron, раз в неделю |
 | Стриминг ответов | SSE через `ReadableStream` |
 
-## Точка продолжения (10.05.2026)
+## Точка продолжения (10.05.2026 — Этап 0 закрыт, ждёт старт Этапа 1)
 
-**Готовность 0%.** План зафиксирован, инфраструктура не поднималась.
+**Готовность 100% по Этапу 0.** Всё работает в проде: магик-линк → почта → клик → попадание на `/` с приветствием.
 
-**Следующий шаг — Этап 0:** дождаться от Артёма ответов на open-вопросы (список вики-источников, структура слотов NTE, whitelist e-mail) → создать GitHub репо → `create-next-app` → поднять Supabase проект → применить миграцию → деплой пустого каркаса на Vercel.
+**Уроки из настройки (для будущих Supabase-проектов):**
+- На каждое приложение — **отдельный Supabase project**. Пересоздавали из-за того, что в первом проекте уже жило другое приложение с конфликтующими таблицами.
+- Перед smoke-тестом обязательно настроить **Authentication → URL Configuration → Site URL** на продовый домен. Дефолт `http://localhost:3000` ломает magic-link на проде (письмо приходит, ссылка ведёт на localhost).
+- **Free tier SMTP Supabase** — 2 письма/час. Для прода надо подключать кастомный SMTP (Resend/SES/etc) перед публичной раздачей.
+
+---
+
+## Архивная заметка по сборке Этапа 0 (10.05.2026)
+
+**Готовность ~70% по Этапу 0.** Каркас Next.js собран, push в GitHub `d08bc00` сделан, локальный `npm run build` ✓ (7 routes, TypeScript clean, только не блокирующая depricacy `middleware → proxy`).
+
+**Что лежит в репо (https://github.com/W1saw/nte-build-helper):**
+
+- Конфиги: `package.json` (Next 16.2.4, React 19.2.4, Supabase JS + ssr, Tailwind 4), `tsconfig.json`, `next.config.ts`, `postcss.config.mjs`, `eslint.config.mjs`, `.gitignore`, `.env.example`, `README.md`.
+- Код:
+  - `src/lib/supabase/client.ts` — browser client.
+  - `src/lib/supabase/server.ts` — server client + admin (service-role).
+  - `src/middleware.ts` — проверка сессии для всех роутов кроме `/login`, `/auth/*`.
+  - `src/app/layout.tsx`, `src/app/globals.css` — базовый layout с RU lang.
+  - `src/app/page.tsx` — заглушка под `/`, redirect на `/login` если не вошёл.
+  - `src/app/login/page.tsx` + `src/app/login/actions.ts` — форма + server action `requestMagicLink` с whitelist-проверкой (через service-role в обход RLS) перед `signInWithOtp`.
+  - `src/app/auth/callback/route.ts` — обмен code → session (стандарт Supabase Auth).
+  - `src/app/auth/error/page.tsx` — экран ошибок авторизации.
+  - `src/app/auth/signout/route.ts` — POST-эндпоинт для выхода.
+- БД:
+  - `supabase/migrations/0001_init.sql` — pgvector + 11 таблиц (allowed_users, characters, shapes, sets, set_required_shapes, cartridges, modules, glossary, guides, screenshots) + RLS-политики «whitelist read/write» + сидинг 12 форм + 12 сетов (имена) + 17 терминов глоссария.
+  - `supabase/seed.sql` — `allowed_users` с одним email Артёма, на conflict do nothing.
+
+**Что осталось по Этапу 0 (Артёму нужно сделать):**
+
+1. **Применить миграцию в Supabase.** Dashboard → SQL Editor → New query → вставить содержимое `supabase/migrations/0001_init.sql` → Run. Потом отдельно — `supabase/seed.sql`. Если в seed нужно добавить email-ы друзей — отредактировать перед выполнением.
+2. **Создать Storage bucket `screenshots`.** Dashboard → Storage → New bucket → name `screenshots`, Private. Policy на чтение/запись для authenticated с whitelist — добавим в Этапе 2 при первом ингесте.
+3. **Дождаться Vercel-деплоя.** После push'а Vercel должен автоматически запустить build. Если ENV не подхватились — проверить Project Settings → Environment Variables (4 переменные: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`).
+4. **Smoke-test на проде:**
+   - Открыть `https://nte-build-helper-<хеш>.vercel.app`
+   - Должно редиректнуть на `/login`
+   - Ввести свой email → нажать «Получить magic-link» → увидеть «Готово. Проверь почту»
+   - Открыть письмо от Supabase → клик по magic-link → попасть на `/` с приветствием «Привет, artem.n-claude@boni-brands.com»
+   - Если email не в `allowed_users` → должна показаться ошибка «Этот email не в списке доступа»
+5. **Ротация Gemini-ключа** (отдельно, если ещё не сделано) — старый ключ был в чате открытым текстом, надо отозвать в Google AI Studio и положить новый в Vercel ENV.
+
+**После закрытия этих 5 пунктов — Этап 0 закрыт.** Можно стартовать Этап 1 (UI конструктор без ИИ) в следующей сессии.
+
+**Этап 1 — следующая сессия:**
+- Заполнить таблицу `characters` хотя бы 5-10 персонажами (вручную или через Vision из Этапа 2).
+- Список персонажей на `/` со ссылкой на `/build/[charId]`.
+- Страница `/build/[charId]` с UI-конструктором (1 картридж + 8 модулей, фильтрация по форме сета).
+- Расчёт суммарных статов на клиенте + индикатор активных 2pc/4pc-бонусов.
